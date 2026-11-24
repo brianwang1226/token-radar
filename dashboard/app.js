@@ -433,6 +433,15 @@
     );
   }
 
+  // The snapshot's own provenance, so a reader can see exactly what the board is built on and
+  // when it was frozen: the data does not move, and neither does the ranking.
+  function sourceFooter() {
+    return el('footer', { class: 'source' },
+      el('p', { text: 'Data: ' + DATA.source }),
+      el('p', { text: 'Method: one function of TVL, seven-day growth, age with no token and chain count, applied the same way to every protocol. No name is special-cased. Board and dashboard are generated from the same snapshot by main.ts; the page recomputes each row and checks it against board.json.' })
+    );
+  }
+
   var dialog = el('dialog', { class: 'detail', id: 'detail', 'aria-labelledby': 'detail-title' });
   dialog.addEventListener('close', function () { state.selected = null; writeHash(); });
 
@@ -449,7 +458,13 @@
         el('h2', { id: 'detail-title', text: row.name }),
         el('p', { class: 'sub', text: (row.category || 'Other') + ' on ' + (row.chains && row.chains.length ? row.chains.join(', ') : 'an unnamed chain') })
       ),
-      el('button', { class: 'close', type: 'button', 'aria-label': 'Close details', text: 'Close', onclick: function () { dialog.close(); } })
+      el('div', { class: 'actions' },
+        el('button', { class: 'close', type: 'button', 'aria-label': 'Copy a link to this protocol', text: 'Copy link', onclick: function () {
+          var link = window.location.href.split('#')[0] + '#p=' + row.slug;
+          if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link);
+        } }),
+        el('button', { class: 'close', type: 'button', 'aria-label': 'Close details', text: 'Close', onclick: function () { dialog.close(); } })
+      )
     ));
     dialog.appendChild(el('section', { class: 'detail-section' },
       el('h3', { text: 'Implied value' }),
@@ -493,6 +508,7 @@
     if (state.tab === 'pre-token') shell.appendChild(moversPanel());
     if (state.tab === 'pre-token') shell.appendChild(modelPanel());
     shell.appendChild(notePanel());
+    shell.appendChild(sourceFooter());
     app.appendChild(shell);
     app.setAttribute('aria-busy', 'false');
     if (!dialog.isConnected) app.appendChild(dialog);
