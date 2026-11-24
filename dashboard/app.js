@@ -232,6 +232,7 @@
     wl.addEventListener('change', function () { state.watchlist = wl.checked; writeHash(); render(); });
     var nw = el('input', { type: 'checkbox', id: 'newonly', checked: state.newOnly ? 'checked' : null });
     nw.addEventListener('change', function () { state.newOnly = nw.checked; writeHash(); render(); });
+    var csv = el('button', { type: 'button', class: 'button', text: 'Download CSV', onclick: function () { downloadCSV(); } });
     var pre = el('button', { type: 'button', 'aria-pressed': state.tab === 'pre-token' ? 'true' : 'false', text: 'Pre-token', onclick: function () { state.tab = 'pre-token'; render(); } });
     var live = el('button', { type: 'button', 'aria-pressed': state.tab === 'live' ? 'true' : 'false', text: 'Live token', onclick: function () { state.tab = 'live'; render(); } });
     return el('div', { class: 'controls' },
@@ -241,7 +242,53 @@
       el('label', { class: 'check', for: 'watchlist' }, wl, 'Watchlist only'),
       el('label', { class: 'check', for: 'newonly' }, nw, 'New (90 days)'),
       el('div', { class: 'field' }, el('span', { class: 'sub', text: 'Token status' }), el('div', { class: 'tabs' }, pre, live)),
+      csv,
       el('span', { class: 'count', text: state.tab === 'pre-token' ? rows().length + ' rows shown' : DATA.live.length + ' live-token protocols' })
+    );
+  }
+
+  // The filtered board as a CSV download, so a reader can take the ranking into a spreadsheet
+  // and sort it there. Every column is a figure the snapshot carries or the model derives.
+  function downloadCSV() {
+    var list = sortedRows(rows());
+    var head = ['rank', 'slug', 'name', 'category', 'chains', 'tvl_usd', 'change_7d', 'age_days', 'implied_value_usd'];
+    function cell(v) {
+      var s = v === null || v === undefined ? '' : String(v);
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }
+    var lines = [head.join(',')];
+    list.forEach(function (r) {
+      lines.push([r.rank, r.slug, r.name, r.category || '', (r.chains || []).join(';'), r.tvl_usd, r.change_7d === null ? '' : r.change_7d, r.age_days === null ? '' : r.age_days, r.implied_value_usd].map(cell).join(','));
+    });
+    var blob = new Blob([lines.join('\n') + '\n'], { type: 'text/csv' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'token-radar-board.csv';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  }
+
+  // The three watchlist protocols the model ranks highest, each with the one figure that puts it
+  // there: the biggest TVL, the fastest growth or the longest run with no token.
+  function spotlightPanel() {
+    var top = DATA.rows.filter(function (r) { return WATCH[r.slug]; }).slice(0, 3);
+    var cards = top.map(function (r) {
+      var reason;
+      if (r.change_7d !== null && r.change_7d >= 5) reason = 'Growing fast: TVL up ' + fmtPct(r.change_7d) + ' in seven days with no token on record.';
+      else if (r.tvl_usd >= 1e9) reason = 'The largest TVL on the watchlist: ' + fmtUsd(r.tvl_usd) + ' locked with no token on record.';
+      else reason = 'Running ' + fmtAge(r.age_days) + ' with no token on record, on ' + fmtUsd(r.tvl_usd) + ' of TVL.';
+      return el('button', { type: 'button', class: 'spot', onclick: function () { openDetail(r.slug); } },
+        el('span', { class: 'spot-rank', text: 'Rank ' + r.rank }),
+        el('span', { class: 'spot-name', text: r.name }),
+        el('span', { class: 'spot-value', text: fmtUsd(r.implied_value_usd) + ' implied' }),
+        el('span', { class: 'sub', text: reason })
+      );
+    });
+    return el('section', { class: 'panel spotlight' },
+      el('h2', { text: 'Watchlist spotlight: the three the model ranks highest' }),
+      el('p', { class: 'sub', text: 'Select one for its model and farm plan.' }),
+      el('div', { class: 'spot-list' }, cards)
     );
   }
 
@@ -367,6 +414,12 @@
       el('div', { class: 'formula' },
         'implied = round( tvl_usd x ' + m.base_multiple + ' x (1 + clamp(change_7d, ' + m.growth_floor + ', ' + m.growth_cap + ') / 100 x ' + m.growth_weight + ') x (' + m.maturity_floor + ' + min(age_days, ' + m.maturity_days + ') / ' + m.maturity_days + ' x ' + m.maturity_range + ') x (1 + ' + m.chain_weight + ' x min(chains - 1, ' + m.chain_max + ')) )'
       ),
+      el('ul', { class: 'rewards' },
+        el('li', null, el('b', { text: 'TVL: ' }), 'size. A protocol with more value locked would launch a bigger token, so the base is TVL times ' + m.base_multiple + '.'),
+        el('li', null, el('b', { text: 'Seven-day growth: ' }), 'momentum. A protocol gaining TVL fast is being used more, so growth lifts the value by up to ' + Math.round((1 + (m.growth_cap / 100) * m.growth_weight) * 100) / 100 + 'x and a shrinking one cuts it.'),
+        el('li', null, el('b', { text: 'Age: ' }), 'time with no token. A protocol that has run longer without issuing one has more pent-up value, so maturity rises from ' + m.maturity_floor + ' to ' + (m.maturity_floor + m.maturity_range) + ' over ' + Math.round(m.maturity_days / 365) + ' years.'),
+        el('li', null, el('b', { text: 'Chains: ' }), 'reach. A protocol live on more chains reaches more users, so each extra chain adds ' + Math.round(m.chain_weight * 100) + '% up to ' + m.chain_max + ' chains.')
+      ),
       el('p', { class: 'sub', text: 'TVL and seven-day growth come from the snapshot. Age is the time since the protocol was first listed, the best record of how long it has run with no token; an unlisted age uses the snapshot median pre-token age, ' + m.unknown_age_days + ' days. A protocol on more chains earns a small reach bonus. The early radar is every rankable pre-token protocol below the watchlist floor, and the live-token protocols are set aside with their market caps shown.' })
     );
   }
@@ -434,6 +487,7 @@
     var shell = el('div', { class: 'shell' });
     shell.appendChild(header());
     shell.appendChild(lede());
+    if (state.tab === 'pre-token') shell.appendChild(spotlightPanel());
     shell.appendChild(controls());
     shell.appendChild(state.tab === 'pre-token' ? boardTable() : liveTable());
     if (state.tab === 'pre-token') shell.appendChild(moversPanel());
