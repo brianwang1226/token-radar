@@ -97,6 +97,9 @@ th .num { text-align: right; }
 .mover:hover { border-color: var(--accent); }
 .mover-name { font-weight: 600; }
 .mover-growth { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.detail-head .actions { display: flex; gap: 8px; }
+.source { margin-top: 18px; color: var(--muted); font-size: 13px; }
+.source p { margin: 4px 0; }
 .note { padding: 14px 20px; color: var(--muted); font-size: 13px; }
 .note b { color: var(--text); }
 .empty { padding: 32px 20px; text-align: center; }
