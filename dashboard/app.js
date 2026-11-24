@@ -7,7 +7,7 @@
   var DATA = window.RADAR;
   if (!DATA) return;
   var app = document.getElementById('board');
-  var state = { q: '', category: 'all', chain: 'all', watchlist: false, newOnly: false, tab: 'pre-token', sort: 'implied', dir: -1, selected: null };
+  var state = { q: '', category: 'all', chain: 'all', watchlist: false, newOnly: false, tab: 'pre-token', sort: 'implied', dir: -1, selected: null, limit: 'all' };
   var WATCH = {};
   DATA.rows.forEach(function (r) { if (r.rank <= DATA.watchlist_size) WATCH[r.slug] = true; });
   // A protocol counts as new when DefiLlama first listed it within the last 90 days: the radar's
@@ -146,6 +146,7 @@
     if (params.get('chain')) state.chain = params.get('chain');
     if (params.get('watchlist') === '1') state.watchlist = true;
     if (params.get('new') === '1') state.newOnly = true;
+    if (params.get('limit')) state.limit = params.get('limit');
   }
   function writeHash() {
     var params = new URLSearchParams();
@@ -154,6 +155,7 @@
     if (state.chain !== 'all') params.set('chain', state.chain);
     if (state.watchlist) params.set('watchlist', '1');
     if (state.newOnly) params.set('new', '1');
+    if (state.limit !== 'all') params.set('limit', state.limit);
     if (state.selected) params.set('p', state.selected);
     var next = params.toString();
     if (next) window.history.replaceState(null, '', '#' + next);
@@ -232,6 +234,12 @@
     wl.addEventListener('change', function () { state.watchlist = wl.checked; writeHash(); render(); });
     var nw = el('input', { type: 'checkbox', id: 'newonly', checked: state.newOnly ? 'checked' : null });
     nw.addEventListener('change', function () { state.newOnly = nw.checked; writeHash(); render(); });
+    // How many rows the table shows at once: the full board is long, so a reader can read the
+    // top of it first and widen it when they want the rest.
+    var lim = el('select', { id: 'limit', 'aria-label': 'Rows shown' },
+      ['all', '25', '50', '100'].map(function (v) { return el('option', { value: v, text: v === 'all' ? 'All rows' : 'Top ' + v, selected: v === state.limit ? 'selected' : null }); })
+    );
+    lim.addEventListener('change', function () { state.limit = lim.value; writeHash(); render(); });
     var csv = el('button', { type: 'button', class: 'button', text: 'Download CSV', onclick: function () { downloadCSV(); } });
     var pre = el('button', { type: 'button', 'aria-pressed': state.tab === 'pre-token' ? 'true' : 'false', text: 'Pre-token', onclick: function () { state.tab = 'pre-token'; render(); } });
     var live = el('button', { type: 'button', 'aria-pressed': state.tab === 'live' ? 'true' : 'false', text: 'Live token', onclick: function () { state.tab = 'live'; render(); } });
@@ -241,6 +249,7 @@
       el('div', { class: 'field' }, el('label', { for: 'chain', text: 'Chain' }), chn),
       el('label', { class: 'check', for: 'watchlist' }, wl, 'Watchlist only'),
       el('label', { class: 'check', for: 'newonly' }, nw, 'New (90 days)'),
+      el('div', { class: 'field' }, el('label', { for: 'limit', text: 'Rows' }), lim),
       el('div', { class: 'field' }, el('span', { class: 'sub', text: 'Token status' }), el('div', { class: 'tabs' }, pre, live)),
       csv,
       el('span', { class: 'count', text: state.tab === 'pre-token' ? rows().length + ' rows shown' : DATA.live.length + ' live-token protocols' })
@@ -327,7 +336,9 @@
   }
 
   function boardTable() {
-    var list = sortedRows(rows());
+    var all = sortedRows(rows());
+    var list = state.limit === 'all' ? all : all.slice(0, parseInt(state.limit, 10));
+    var shown = state.limit === 'all' ? all.length : Math.min(all.length, parseInt(state.limit, 10));
     if (list.length === 0) {
       return el('div', { class: 'panel' }, el('div', { class: 'empty' },
         el('h2', { text: 'No protocol matches that filter' }),
@@ -366,7 +377,7 @@
     return el('div', { class: 'panel' },
       el('div', { class: 'table-wrap' },
         el('table', null,
-          el('caption', { class: 'sub', text: 'Pre-token protocols, strongest implied value first. Select a row for its model and farm plan.' }),
+          el('caption', { class: 'sub', text: 'Pre-token protocols, strongest implied value first. ' + (state.limit === 'all' ? '' : 'Showing ' + shown + ' of ' + all.length + '. ') + 'Select a row for its model and farm plan.' }),
           el('thead', null, el('tr', null,
             sortHeader('implied', 'Rank'),
             sortHeader('name', 'Protocol'),
