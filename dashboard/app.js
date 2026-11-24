@@ -7,9 +7,13 @@
   var DATA = window.RADAR;
   if (!DATA) return;
   var app = document.getElementById('board');
-  var state = { q: '', category: 'all', chain: 'all', watchlist: false, tab: 'pre-token', sort: 'implied', dir: -1, selected: null };
+  var state = { q: '', category: 'all', chain: 'all', watchlist: false, newOnly: false, tab: 'pre-token', sort: 'implied', dir: -1, selected: null };
   var WATCH = {};
   DATA.rows.forEach(function (r) { if (r.rank <= DATA.watchlist_size) WATCH[r.slug] = true; });
+  // A protocol counts as new when DefiLlama first listed it within the last 90 days: the radar's
+  // way to surface a launch that has only just appeared, before its TVL has grown.
+  var NEW_DAYS = 90;
+  function isNew(r) { return r.age_days !== null && r.age_days !== undefined && r.age_days <= NEW_DAYS; }
 
   var usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
   function fmtUsd(n) {
@@ -127,7 +131,8 @@
       { text: 'Make one qualifying action each week, such as ' + weeklyFor(p) + '.', cost: 'about $' + gas.weekly + ' of gas a week on ' + chain, time: '10 minutes a week' },
       { text: 'Hold the position for at least ' + hold + ' days so the activity is counted in more than one snapshot.', cost: 'the $' + capital + ' stays in the position', time: hold + ' days' },
       { text: "Before you withdraw, open the protocol's own points or rewards page and claim only from the link it publishes.", cost: 'no fee to check, and never pay to claim', time: '10 minutes' },
-      { text: 'Write the wallet, the dates and every transaction in a farm log so you can repeat the position or unwind it.', cost: 'nothing but the log', time: '5 minutes' }
+      { text: 'Write the wallet, the dates and every transaction in a farm log so you can repeat the position or unwind it.', cost: 'nothing but the log', time: '5 minutes' },
+      { text: "Only trust links from the protocol's official site and its verified accounts: never connect a wallet to a claim link from a direct message, a search ad or a look-alike domain.", cost: 'nothing, and it saves the whole position', time: '2 minutes to check' }
     ].map(stepText);
   }
 
@@ -140,6 +145,7 @@
     if (params.get('category')) state.category = params.get('category');
     if (params.get('chain')) state.chain = params.get('chain');
     if (params.get('watchlist') === '1') state.watchlist = true;
+    if (params.get('new') === '1') state.newOnly = true;
   }
   function writeHash() {
     var params = new URLSearchParams();
@@ -147,6 +153,7 @@
     if (state.category !== 'all') params.set('category', state.category);
     if (state.chain !== 'all') params.set('chain', state.chain);
     if (state.watchlist) params.set('watchlist', '1');
+    if (state.newOnly) params.set('new', '1');
     if (state.selected) params.set('p', state.selected);
     var next = params.toString();
     if (next) window.history.replaceState(null, '', '#' + next);
@@ -159,6 +166,7 @@
       if (state.category !== 'all' && r.category !== state.category) return false;
       if (state.chain !== 'all' && (r.chains || []).indexOf(state.chain) < 0) return false;
       if (state.watchlist && !WATCH[r.slug]) return false;
+      if (state.newOnly && !isNew(r)) return false;
       if (!q) return true;
       var hay = [r.name, r.slug, r.category, (r.chains || []).join(' ')].join(' ').toLowerCase();
       return hay.indexOf(q) >= 0;
@@ -222,6 +230,8 @@
     chn.addEventListener('change', function () { state.chain = chn.value; writeHash(); render(); });
     var wl = el('input', { type: 'checkbox', id: 'watchlist', checked: state.watchlist ? 'checked' : null });
     wl.addEventListener('change', function () { state.watchlist = wl.checked; writeHash(); render(); });
+    var nw = el('input', { type: 'checkbox', id: 'newonly', checked: state.newOnly ? 'checked' : null });
+    nw.addEventListener('change', function () { state.newOnly = nw.checked; writeHash(); render(); });
     var pre = el('button', { type: 'button', 'aria-pressed': state.tab === 'pre-token' ? 'true' : 'false', text: 'Pre-token', onclick: function () { state.tab = 'pre-token'; render(); } });
     var live = el('button', { type: 'button', 'aria-pressed': state.tab === 'live' ? 'true' : 'false', text: 'Live token', onclick: function () { state.tab = 'live'; render(); } });
     return el('div', { class: 'controls' },
@@ -229,8 +239,34 @@
       el('div', { class: 'field' }, el('label', { for: 'category', text: 'Category' }), cat),
       el('div', { class: 'field' }, el('label', { for: 'chain', text: 'Chain' }), chn),
       el('label', { class: 'check', for: 'watchlist' }, wl, 'Watchlist only'),
+      el('label', { class: 'check', for: 'newonly' }, nw, 'New (90 days)'),
       el('div', { class: 'field' }, el('span', { class: 'sub', text: 'Token status' }), el('div', { class: 'tabs' }, pre, live)),
       el('span', { class: 'count', text: state.tab === 'pre-token' ? rows().length + ' rows shown' : DATA.live.length + ' live-token protocols' })
+    );
+  }
+
+  // The five pre-token protocols whose TVL grew fastest in the last seven days: growth is the
+  // radar's earliest signal, and a mover that is still small may be the next launch to watch.
+  function topMovers() {
+    return DATA.rows
+      .filter(function (r) { return r.change_7d !== null && r.change_7d !== undefined; })
+      .sort(function (a, b) { return b.change_7d - a.change_7d || b.tvl_usd - a.tvl_usd; })
+      .slice(0, 5);
+  }
+
+  function moversPanel() {
+    var movers = topMovers();
+    var items = movers.map(function (r) {
+      return el('button', { type: 'button', class: 'mover', onclick: function () { openDetail(r.slug); } },
+        el('span', { class: 'mover-name', text: r.name }),
+        el('span', { class: 'mover-growth pos', text: fmtPct(r.change_7d) }),
+        el('span', { class: 'sub', text: 'TVL ' + fmtUsd(r.tvl_usd) + ' · implied ' + fmtUsd(r.implied_value_usd) + ' · rank ' + r.rank })
+      );
+    });
+    return el('section', { class: 'panel movers' },
+      el('h2', { text: 'Top movers: fastest seven-day TVL growth' }),
+      el('p', { class: 'sub', text: 'Growth is the radar\u2019s earliest signal. Select a mover for its model and farm plan.' }),
+      el('div', { class: 'mover-list' }, items)
     );
   }
 
@@ -249,7 +285,7 @@
       return el('div', { class: 'panel' }, el('div', { class: 'empty' },
         el('h2', { text: 'No protocol matches that filter' }),
         el('p', { text: 'Clear the search or pick another category to see the board again.' }),
-        el('button', { class: 'button primary', type: 'button', text: 'Clear filters', onclick: function () { state.q = ''; state.category = 'all'; state.chain = 'all'; state.watchlist = false; writeHash(); render(); } })
+        el('button', { class: 'button primary', type: 'button', text: 'Clear filters', onclick: function () { state.q = ''; state.category = 'all'; state.chain = 'all'; state.watchlist = false; state.newOnly = false; writeHash(); render(); } })
       ));
     }
     var max = list[0].implied_value_usd || 1;
@@ -400,6 +436,7 @@
     shell.appendChild(lede());
     shell.appendChild(controls());
     shell.appendChild(state.tab === 'pre-token' ? boardTable() : liveTable());
+    if (state.tab === 'pre-token') shell.appendChild(moversPanel());
     if (state.tab === 'pre-token') shell.appendChild(modelPanel());
     shell.appendChild(notePanel());
     app.appendChild(shell);
