@@ -35,10 +35,11 @@ rows in all, 186 of them early.
 
 A static page, no framework and no network: `dashboard/index.html`, `dashboard/app.css` and
 `dashboard/app.js` read `data.js`. It sorts by rank, TVL, growth, age or implied value; filters
-by search, category, chain and watchlist-only; shows a live-token view set apart from the
-pre-token ranking; and opens a detail view for each protocol with its model breakdown and farm
-plan. Each farm plan is six steps derived from the protocol's own record (category, chains, TVL,
-age), with what each step costs and how long it takes.
+by search, category, chain, watchlist-only and newly listed (last 90 days); shows a live-token
+view set apart from the pre-token ranking; lists the five fastest seven-day movers; and opens a
+detail view for each protocol with its model breakdown and farm plan. Each farm plan is seven
+steps derived from the protocol's own record (category, chains, TVL, age), with what each step
+costs and how long it takes, and a last step against fake claim links.
 
 Built for the make.fun "Build the best token launch radar" bounty. Implied value is a model,
 not a promise: it does not predict whether or when a token is issued, and a protocol is listed
