@@ -77,6 +77,14 @@ th .num { text-align: right; }
 .model h2, .detail-section h3 { margin: 0 0 6px; font-size: 16px; }
 .model p { margin: 6px 0; }
 .formula { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; overflow-x: auto; white-space: nowrap; }
+.movers { padding: 18px 20px; }
+.movers h2 { margin: 0 0 4px; font-size: 16px; }
+.movers p { margin: 0 0 12px; }
+.mover-list { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+.mover { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; text-align: left; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px; cursor: pointer; color: var(--text); font: inherit; }
+.mover:hover { border-color: var(--accent); }
+.mover-name { font-weight: 600; }
+.mover-growth { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .note { padding: 14px 20px; color: var(--muted); font-size: 13px; }
 .note b { color: var(--text); }
 .empty { padding: 32px 20px; text-align: center; }
