@@ -355,8 +355,10 @@ function weeklyFor(p: SnapshotProtocol): string {
 }
 
 /**
- * A protocol's farm plan: six steps, each an action with a cost and a time. The plan is derived from
- * the protocol's own record (category, chains, TVL, age), never from a hand-written list of names.
+ * A protocol's farm plan: seven steps, each an action with a cost and a time. The plan is derived
+ * from the protocol's own record (category, chains, TVL, age), never from a hand-written list of
+ * names. The last step is a guard against the most common way farmers lose money: a fake claim
+ * link.
  */
 export function farmSteps(p: SnapshotProtocol, age: number | null): FarmStep[] {
   const chain = chainOf(p);
@@ -395,6 +397,11 @@ export function farmSteps(p: SnapshotProtocol, age: number | null): FarmStep[] {
       text: `Write the wallet, the dates and every transaction in a farm log so you can repeat the position or unwind it.`,
       cost: 'nothing but the log',
       time: '5 minutes',
+    },
+    {
+      text: `Only trust links from the protocol's official site and its verified accounts: never connect a wallet to a claim link from a direct message, a search ad or a look-alike domain.`,
+      cost: 'nothing, and it saves the whole position',
+      time: '2 minutes to check',
     },
   ];
 }
